@@ -9,9 +9,10 @@ TRUE_LABELS that you use with the rule based model.
 
 from typing import List, Tuple
 
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split
 
 from dataset import SAMPLE_POSTS, TRUE_LABELS
 
@@ -19,17 +20,13 @@ from dataset import SAMPLE_POSTS, TRUE_LABELS
 def train_ml_model(
     texts: List[str],
     labels: List[str],
-) -> Tuple[CountVectorizer, LogisticRegression]:
+) -> Tuple[TfidfVectorizer, LogisticRegression]:
     """
-    Train a simple text classifier using bag of words features
+    Train a simple text classifier using TF-IDF features
     and logistic regression.
 
-    Steps:
-      1. Convert the texts into numeric vectors using CountVectorizer.
-      2. Fit a LogisticRegression model on those vectors and labels.
-
-    Returns:
-      (vectorizer, model)
+    This keeps the original structure of the project, but
+    uses a more realistic ML setup for a tiny dataset.
     """
     if len(texts) != len(labels):
         raise ValueError(
@@ -40,19 +37,38 @@ def train_ml_model(
     if not texts:
         raise ValueError("No training data provided. Add examples in dataset.py.")
 
-    vectorizer = CountVectorizer()
-    X = vectorizer.fit_transform(texts)
+    X_train, X_test, y_train, y_test = train_test_split(
+        texts,
+        labels,
+        test_size=0.3,
+        random_state=42,
+    )
 
-    model = LogisticRegression(max_iter=1000)
-    model.fit(X, labels)
+    vectorizer = TfidfVectorizer(lowercase=True, ngram_range=(1, 2))
+    X_train_vec = vectorizer.fit_transform(X_train)
 
+    model = LogisticRegression(
+        max_iter=1000,
+        class_weight="balanced",
+    )
+    model.fit(X_train_vec, y_train)
+
+    X_test_vec = vectorizer.transform(X_test)
+    preds = model.predict(X_test_vec)
+
+    print("=== ML Model Evaluation on Test Set ===")
+    for text, true_label, pred_label in zip(X_test, y_test, preds):
+        print(f'"{text}" -> predicted={pred_label}, true={true_label}')
+
+    accuracy = accuracy_score(y_test, preds)
+    print(f"\nAccuracy on this dataset: {accuracy:.2f}")
     return vectorizer, model
 
 
 def evaluate_on_dataset(
     texts: List[str],
     labels: List[str],
-    vectorizer: CountVectorizer,
+    vectorizer: TfidfVectorizer,
     model: LogisticRegression,
 ) -> float:
     """
@@ -71,11 +87,7 @@ def evaluate_on_dataset(
     preds = model.predict(X)
 
     print("=== ML Model Evaluation on Dataset ===")
-    correct = 0
     for text, true_label, pred_label in zip(texts, labels, preds):
-        is_correct = pred_label == true_label
-        if is_correct:
-            correct += 1
         print(f'"{text}" -> predicted={pred_label}, true={true_label}')
 
     accuracy = accuracy_score(labels, preds)
@@ -85,7 +97,7 @@ def evaluate_on_dataset(
 
 def predict_single_text(
     text: str,
-    vectorizer: CountVectorizer,
+    vectorizer: TfidfVectorizer,
     model: LogisticRegression,
 ) -> str:
     """
@@ -98,7 +110,7 @@ def predict_single_text(
 
 
 def run_interactive_loop(
-    vectorizer: CountVectorizer,
+    vectorizer: TfidfVectorizer,
     model: LogisticRegression,
 ) -> None:
     """
@@ -125,13 +137,11 @@ if __name__ == "__main__":
     print("Training an ML model on SAMPLE_POSTS and TRUE_LABELS from dataset.py...")
     print("Make sure you have added enough labeled examples before running this.\n")
 
-    # Train the model on the current dataset.
     vectorizer, model = train_ml_model(SAMPLE_POSTS, TRUE_LABELS)
 
-    # Evaluate on the same dataset (training accuracy).
-    evaluate_on_dataset(SAMPLE_POSTS, TRUE_LABELS, vectorizer, model)
+    # Optional: evaluate on the full dataset as a sanity check
+    # evaluate_on_dataset(SAMPLE_POSTS, TRUE_LABELS, vectorizer, model)
 
-    # Let the user try their own examples.
     run_interactive_loop(vectorizer, model)
 
     print("\nTip: Compare these predictions with the rule based model")
